@@ -46,6 +46,9 @@
   let position = { x: 0, y: 0 };
   let hasMoved = false;
 
+  // Mobile detection
+  let isMobile = false;
+
   // Typewriter effect
   let typedText = "";
   const fullText = "реверс инжиниринг разработчик и музыкант";
@@ -653,6 +656,15 @@
   }
 
   onMount(() => {
+    // Detect mobile / touch device
+    isMobile =
+      "ontouchstart" in window ||
+      navigator.maxTouchPoints > 0 ||
+      window.innerWidth < 768;
+    if (isMobile) {
+      document.body.classList.add("is-mobile");
+    }
+
     requestAnimationFrame(() => {
       show = true;
       setTimeout(typeWriter, 800);
@@ -660,7 +672,11 @@
 
     // Welcome notification
     setTimeout(() => {
-      showNotification("Добро пожаловать", "shortcut", "wave");
+      showNotification(
+        "Добро пожаловать",
+        isMobile ? "Добро пожаловать!" : "shortcut",
+        "wave",
+      );
     }, 2000);
 
     // Telegram notification + badge
@@ -878,6 +894,7 @@
 
   // Drag functionality
   function startDrag(e) {
+    if (isMobile) return; // Disable drag on mobile
     if (e.target.closest(".traffic-lights")) return;
     isDragging = true;
     const rect = windowEl.getBoundingClientRect();
@@ -921,6 +938,36 @@
   function stopDrag() {
     isDragging = false;
     avatarTilt = { x: 0, y: 0 };
+  }
+
+  // Touch support for audio progress bar
+  function handleProgressTouch(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const progress =
+      e.currentTarget.querySelector(".audio-progress") || e.currentTarget;
+    const rect = progress.getBoundingClientRect();
+    const percent = Math.max(
+      0,
+      Math.min(1, (touch.clientX - rect.left) / rect.width),
+    );
+    audio.currentTime = percent * audio.duration;
+    audioProgress = percent * 100;
+    audioCurrentTime = audio.currentTime;
+  }
+
+  // Touch support for volume slider
+  function handleVolumeTouch(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const slider = e.currentTarget;
+    const rect = slider.getBoundingClientRect();
+    const percent = Math.max(
+      0,
+      Math.min(1, (touch.clientX - rect.left) / rect.width),
+    );
+    audioVolume = percent;
+    audio.volume = audioVolume;
   }
 </script>
 
@@ -1261,8 +1308,10 @@
   <div
     class="audio-player"
     class:playing={isPlaying}
-    style="transform: translate({$playerPos.x}px, {$playerPos.y}px);"
-    on:mousedown={startPlayerDrag}
+    style="transform: translate({isMobile ? 0 : $playerPos.x}px, {isMobile
+      ? 0
+      : $playerPos.y}px);"
+    on:mousedown={isMobile ? undefined : startPlayerDrag}
   >
     <div class="audio-top">
       <div class="audio-artwork">
@@ -1317,7 +1366,11 @@
 
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <!-- svelte-ignore a11y-no-static-element-interactions -->
-    <div class="audio-progress-container" on:mousedown={startProgressDrag}>
+    <div
+      class="audio-progress-container"
+      on:mousedown={startProgressDrag}
+      on:touchstart={handleProgressTouch}
+    >
       <div class="audio-time">{formatTime(audioCurrentTime)}</div>
       <div class="audio-progress">
         <div class="audio-progress-bar" style="width: {audioProgress}%"></div>
@@ -1339,7 +1392,11 @@
       >
         <path d="M11 5L6 9H2v6h4l5 4V5z" />
       </svg>
-      <div class="volume-slider" on:mousedown={startVolumeDrag}>
+      <div
+        class="volume-slider"
+        on:mousedown={startVolumeDrag}
+        on:touchstart={handleVolumeTouch}
+      >
         <div class="volume-fill" style="width: {audioVolume * 100}%"></div>
         <div class="volume-knob" style="left: {audioVolume * 100}%"></div>
       </div>
@@ -1402,8 +1459,9 @@
   <!-- 3D Tilt Wrapper -->
   <div
     class="window-tilt-wrapper"
-    style="transform: perspective(1200px) rotateX({shadowY *
-      -0.6}deg) rotateY({shadowX * 0.6}deg);"
+    style="transform: {isMobile
+      ? 'none'
+      : `perspective(1200px) rotateX(${shadowY * -0.6}deg) rotateY(${shadowX * 0.6}deg)`};"
   >
     <div
       class="window-card"
@@ -3096,6 +3154,193 @@
     40%,
     60% {
       transform: translate3d(6px, -4px, 0);
+    }
+  }
+
+  /* =============================================
+     MOBILE RESPONSIVE STYLES (max-width: 767px)
+     ============================================= */
+  @media (max-width: 767px) {
+    /* Hide custom cursor completely on touch devices */
+    .custom-cursor {
+      display: none !important;
+    }
+
+    /* Allow body to scroll on mobile */
+    :global(body) {
+      overflow: auto;
+      cursor: auto !important;
+    }
+
+    :global(*) {
+      cursor: auto !important;
+    }
+
+    /* Main layout — center window on mobile */
+    main {
+      align-items: center;
+      justify-content: center;
+      padding: 16px 0 130px 0;
+      min-height: 100vh;
+      height: auto;
+    }
+
+    /* Window tilt wrapper — centered block */
+    .window-tilt-wrapper {
+      transform: none !important;
+      width: calc(100vw - 24px);
+      max-width: 480px;
+      margin: 0 auto;
+      display: block;
+      padding: 0;
+    }
+
+    /* Window card — fill wrapper */
+    .window-card {
+      width: 100% !important;
+      max-width: none;
+      height: auto !important;
+      min-height: 0;
+      overflow: visible;
+    }
+
+    /* Content padding */
+    .content {
+      padding-top: 28px;
+      padding-bottom: 24px;
+    }
+
+    /* Avatar */
+    .avatar-container {
+      width: 90px;
+      height: 90px;
+      margin-bottom: 10px;
+    }
+
+    .avatar {
+      width: 90px;
+      height: 90px;
+    }
+
+    /* Title */
+    h1.animated-gradient {
+      font-size: 22px;
+      line-height: 26px;
+    }
+
+    /* Subtitle */
+    .subtitle {
+      font-size: 14px;
+      line-height: 18px;
+      margin: 0 12px 20px 12px;
+    }
+
+    /* Links */
+    .links {
+      width: 100%;
+      padding: 0 16px;
+      align-items: stretch;
+    }
+
+    .link-btn {
+      width: 100%;
+      min-width: 0;
+      height: 46px;
+      font-size: 16px;
+      justify-content: flex-start;
+      padding: 0 20px;
+    }
+
+    .btn-text {
+      font-size: 16px;
+    }
+
+    .icon {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Hide tooltip on mobile (no hover) */
+    .tooltip {
+      display: none;
+    }
+
+    /* Audio player — centered at bottom, full width */
+    .audio-player {
+      left: 50% !important;
+      right: auto !important;
+      bottom: 72px !important;
+      transform: translateX(-50%) !important;
+      width: min(92vw, 340px) !important;
+    }
+
+    /* Show volume/progress knobs always on mobile (no hover) */
+    .volume-knob,
+    .progress-knob {
+      opacity: 1 !important;
+    }
+
+    /* Make progress and volume bars taller for easier touch */
+    .audio-progress,
+    .volume-slider {
+      height: 6px;
+    }
+
+    /* Dock — smaller, more compact */
+    .dock {
+      padding: 6px 10px;
+      gap: 8px;
+      bottom: 14px;
+    }
+
+    .dock-icon {
+      width: 30px;
+      height: 30px;
+    }
+
+    .dock-svg-icon {
+      padding: 6px;
+    }
+
+    /* Hide keyboard hint on mobile (no keyboard shortcuts) */
+    .keyboard-hint {
+      display: none !important;
+    }
+
+    /* Notifications — full width aware */
+    .notifications {
+      right: 8px;
+      top: 8px;
+      max-width: calc(100vw - 16px);
+    }
+
+    .notification {
+      min-width: 0;
+      max-width: calc(100vw - 16px);
+    }
+
+    /* Spotlight — full width on mobile */
+    .spotlight-overlay {
+      padding-top: 10vh;
+      align-items: flex-start;
+    }
+
+    .spotlight {
+      width: 92vw;
+      max-width: none;
+    }
+
+    /* Theme button — keep it accessible */
+    .theme-btn {
+      top: 12px;
+      right: 12px;
+      cursor: auto !important;
+    }
+
+    /* Terminal overlay — better font size on small screens */
+    .terminal-overlay {
+      padding: 20px 16px;
+      font-size: 13px;
     }
   }
 </style>
