@@ -1,10 +1,42 @@
 <script>
   import { onMount } from "svelte";
+  import { spring } from "svelte/motion";
   import LoadingScreen from "./LoadingScreen.svelte";
 
   const base = import.meta.env.BASE_URL;
 
-  let show = false;
+  let show = true;
+  let showPlayer = true;
+  let isDarkTheme = false;
+
+  function toggleTheme() {
+    isDarkTheme = !isDarkTheme;
+
+    // Sync music with theme
+    if (audio) {
+      if (isDarkTheme) {
+        currentTrackIndex = 2; // track3.mp3
+      } else {
+        currentTrackIndex = 0; // track.mp3
+      }
+      loadTrack(currentTrackIndex, true);
+    }
+  }
+
+  function togglePlayer() {
+    showPlayer = !showPlayer;
+  }
+
+  function openBioApp() {
+    if (!show) {
+      show = true;
+      typedText = "";
+      showCursor = true;
+      setTimeout(typeWriter, 200);
+    } else {
+      handleClose();
+    }
+  }
   let siteEntered = false;
   let minimized = false;
   let closed = false;
@@ -42,7 +74,7 @@
     },
     {
       id: 3,
-      title: "my discord server",
+      title: "discord",
       icon: "discord",
       url: "https://discord.gg/ffGYWDWczc",
       tooltip: "Открыть Discord",
@@ -69,6 +101,82 @@
   let showBadge = false;
   let badgeCount = 1;
 
+  // Easter egg terminal crash
+  let typedKeys = "";
+  let showTerminal = false;
+  let terminalLines = [];
+  let terminalInput = "";
+  let terminalError = false;
+
+  function startTerminalCrash() {
+    showTerminal = true;
+    terminalLines = ["Initializing root access protocol..."];
+    terminalInput = "";
+    terminalError = false;
+
+    setTimeout(
+      () =>
+        pushLine("Connecting to local secure server [127.0.0.1]... SUCCESS"),
+      800,
+    );
+    setTimeout(() => pushLine("Handshake established."), 1400);
+    setTimeout(() => pushLine("enter login and password"), 2000);
+
+    // Animate typing login
+    setTimeout(() => typeInput("login: admin"), 2600);
+    setTimeout(() => pushLine("login: admin"), 3800); // 2600 + 1200ms type time
+
+    // Animate typing password
+    setTimeout(() => typeInput("password: *****"), 4200);
+    setTimeout(() => pushLine("password: *****"), 5400);
+    setTimeout(() => pushLine("Verifying credentials..."), 5800);
+
+    // Crash
+    setTimeout(() => {
+      terminalError = true;
+      pushLine("[!!!] ACCESS DENIED");
+      pushLine("[!!!] FATAL SECURITY EXCEPTION");
+      pushLine("[!!!] INITIATING SYSTEM LOCKDOWN");
+    }, 7000);
+  }
+
+  function pushLine(text) {
+    terminalLines = [...terminalLines, text];
+    terminalInput = ""; // Clear input when a line is finished
+  }
+
+  function typeInput(text) {
+    let i = 0;
+    terminalInput = "";
+    const interval = setInterval(() => {
+      if (i < text.length) {
+        terminalInput += text[i];
+        i++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 80); // 80ms per character
+  }
+
+  // Audio player physics (inertia)
+  let isDraggingPlayer = false;
+  let playerDragOffset = { x: 0, y: 0 };
+  let playerPos = spring(
+    { x: 0, y: 0 },
+    {
+      stiffness: 0.08,
+      damping: 0.35, // Smooth inertia and slight overshoot
+    },
+  );
+
+  function startPlayerDrag(e) {
+    if (e.target.closest("button, .audio-progress-container, .volume-slider"))
+      return;
+    isDraggingPlayer = true;
+    playerDragOffset.x = e.clientX - $playerPos.x;
+    playerDragOffset.y = e.clientY - $playerPos.y;
+  }
+
   // Audio player
   let audio;
   let isPlaying = false;
@@ -78,6 +186,81 @@
   let audioVolume = 0.3;
   let isDraggingVolume = false;
   let isDraggingProgress = false;
+
+  // Audio Visualizer
+  let audioContext;
+  let analyser;
+  let source;
+  let dataArray;
+  let canvasEl;
+  let canvasCtx;
+  let visualizerInitialized = false;
+
+  function initVisualizer() {
+    if (visualizerInitialized || !audio) return;
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+
+    source = audioContext.createMediaElementSource(audio);
+    source.connect(analyser);
+    analyser.connect(audioContext.destination);
+
+    analyser.fftSize = 256; // 64 bins for richer visualizer
+    const bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+
+    if (canvasEl) {
+      canvasEl.width = window.innerWidth;
+      canvasEl.height = window.innerHeight;
+      canvasCtx = canvasEl.getContext("2d");
+      drawVisualizer();
+    }
+
+    visualizerInitialized = true;
+  }
+
+  function drawVisualizer() {
+    requestAnimationFrame(drawVisualizer);
+    if (!canvasCtx || !analyser) return;
+
+    analyser.getByteFrequencyData(dataArray);
+
+    canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+    const barWidth = (canvasEl.width / dataArray.length) * 2.5;
+    let barHeight;
+    let x = 0;
+
+    for (let i = 0; i < dataArray.length; i++) {
+      barHeight = dataArray[i] * 6.5; // Scale height up significantly for a taller visualizer
+
+      // Create gradient for bars (syncs with light/dark theme style)
+      const gradient = canvasCtx.createLinearGradient(
+        0,
+        canvasEl.height,
+        0,
+        canvasEl.height - barHeight,
+      );
+      if (isDarkTheme) {
+        gradient.addColorStop(0, "rgba(255, 255, 255, 0.1)");
+        gradient.addColorStop(1, "rgba(255, 255, 255, 0.7)");
+      } else {
+        gradient.addColorStop(0, "rgba(0, 0, 0, 0.1)");
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0.6)");
+      }
+
+      canvasCtx.fillStyle = gradient;
+      canvasCtx.fillRect(
+        x,
+        canvasEl.height - barHeight / 2,
+        barWidth,
+        barHeight / 2,
+      );
+
+      x += barWidth + 2;
+    }
+  }
 
   // Playlist
   let currentTrackIndex = 0;
@@ -155,14 +338,15 @@
     {
       icon: "copy",
       label: "Копировать ссылку",
-      action: () => navigator.clipboard.writeText("https://haos1y.site"),
+      action: () =>
+        navigator.clipboard.writeText("https://haosyy.github.io/haos1y.site/"),
     },
     {
       icon: "share",
       label: "Поделиться",
       action: () =>
         navigator.share?.({
-          url: "https://haos1y.site",
+          url: "https://haosyy.github.io/haos1y.site/",
           title: "haos1y",
         }),
     },
@@ -220,6 +404,18 @@
           "https://open.spotify.com/user/8r02yukempwltp3jj1jajx5dc?si=36390fa567724146",
           "_blank",
         ),
+    },
+    {
+      icon: "discord",
+      title: "Discord",
+      desc: "Присоединиться к серверу Discord",
+      action: () => window.open("https://discord.gg/ffGYWDWczc", "_blank"),
+    },
+    {
+      icon: "soundcloud",
+      title: "Soundcloud",
+      desc: "Открыть профиль Soundcloud",
+      action: () => window.open("https://soundcloud.com/haos1y", "_blank"),
     },
     {
       icon: "star",
@@ -374,8 +570,22 @@
     drag(e);
   }
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts and easter egg tracker
   function handleKeydown(e) {
+    // Escape to close spotlight or context menu
+    if (e.key === "Escape") {
+      if (spotlightOpen) closeSpotlight();
+      if (contextMenuOpen) closeContextMenu();
+      if (showTerminal) {
+        showTerminal = false;
+        terminalLines = [];
+        terminalError = false;
+      }
+    }
+
+    // Ignore tracker if in spotlight input
+    if (spotlightOpen || showTerminal) return;
+
     // Cmd/Ctrl + K for spotlight
     if ((e.metaKey || e.ctrlKey) && e.key === "k") {
       e.preventDefault();
@@ -384,11 +594,19 @@
       if (spotlightOpen) {
         setTimeout(() => searchInputEl?.focus(), 100);
       }
+      return;
     }
-    // Escape to close spotlight or context menu
-    if (e.key === "Escape") {
-      if (spotlightOpen) closeSpotlight();
-      if (contextMenuOpen) closeContextMenu();
+
+    // Easter egg tracking
+    if (e.key.length === 1) {
+      // Only track single characters
+      typedKeys += e.key.toLowerCase();
+      if (typedKeys.length > 20) typedKeys = typedKeys.slice(-20);
+
+      if (typedKeys.endsWith("admin")) {
+        typedKeys = "";
+        startTerminalCrash();
+      }
     }
   }
 
@@ -479,11 +697,18 @@
       console.error("Audio not initialized");
       return;
     }
+
+    if (audioContext && audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+
     audio.volume = 0;
     audio
       .play()
       .then(() => {
         isPlaying = true;
+        initVisualizer(); // Initialize Web Audio API on first interaction
+
         // Fade in volume over 2 seconds
         let vol = 0;
         const fadeIn = setInterval(() => {
@@ -577,6 +802,12 @@
   }
 
   function handleGlobalMouseMove(e) {
+    if (isDraggingPlayer) {
+      playerPos.set({
+        x: e.clientX - playerDragOffset.x,
+        y: e.clientY - playerDragOffset.y,
+      });
+    }
     if (isDraggingVolume) {
       const slider = document.querySelector(".volume-slider");
       if (slider) {
@@ -604,6 +835,7 @@
   }
 
   function handleGlobalMouseUp() {
+    isDraggingPlayer = false;
     if (isDraggingProgress && audio) {
       audio.currentTime = (audioProgress / 100) * audio.duration;
     }
@@ -676,7 +908,7 @@
 
     // Границы окна (окно не выходит за края)
     const windowWidth = 600;
-    const windowHeight = 485;
+    const windowHeight = 560;
     const minX = -centerX + windowWidth / 2;
     const maxX = centerX - windowWidth / 2;
     const minY = -centerY + windowHeight / 2;
@@ -853,6 +1085,10 @@
                 <img src="{base}telegram.svg" alt="" width="20" height="20" />
               {:else if item.icon === "spotify"}
                 <img src="{base}spotify.svg" alt="" width="20" height="20" />
+              {:else if item.icon === "discord"}
+                <img src="{base}discord.svg" alt="" width="20" height="20" />
+              {:else if item.icon === "soundcloud"}
+                <img src="{base}soundcloud.svg" alt="" width="20" height="20" />
               {:else if item.icon === "star"}
                 <svg
                   width="20"
@@ -1020,99 +1256,107 @@
 </div>
 
 <!-- Audio player - Apple Music style -->
-<div class="audio-player" class:playing={isPlaying}>
-  <div class="audio-top">
-    <div class="audio-artwork">
-      <img src={trackCover} alt="" />
-      <div class="audio-artwork-overlay">
-        {#if isPlaying}
-          <div class="audio-bars">
-            <span></span><span></span><span></span>
-          </div>
-        {/if}
+{#if showPlayer}
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div
+    class="audio-player"
+    class:playing={isPlaying}
+    style="transform: translate({$playerPos.x}px, {$playerPos.y}px);"
+    on:mousedown={startPlayerDrag}
+  >
+    <div class="audio-top">
+      <div class="audio-artwork">
+        <img src={trackCover} alt="" />
+        <div class="audio-artwork-overlay">
+          {#if isPlaying}
+            <div class="audio-bars">
+              <span></span><span></span><span></span>
+            </div>
+          {/if}
+        </div>
+      </div>
+
+      <div class="audio-info">
+        <span class="audio-track">{trackName}</span>
+        <span class="audio-artist">{artistName}</span>
+      </div>
+
+      <div class="audio-controls-play">
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <button class="audio-btn skip-btn" on:click={prevTrack}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 6v12h2V6H7zm10 0l-7 6 7 6V6z" />
+          </svg>
+        </button>
+
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <button class="audio-btn play-btn" on:click={toggleAudio}>
+          {#if isPlaying}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          {:else}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          {/if}
+        </button>
+
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <button class="audio-btn skip-btn" on:click={nextTrack}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 6v12l7-6-7-6zm10 0v12h-2V6h2z" />
+          </svg>
+        </button>
       </div>
     </div>
 
-    <div class="audio-info">
-      <span class="audio-track">{trackName}</span>
-      <span class="audio-artist">{artistName}</span>
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="audio-progress-container" on:mousedown={startProgressDrag}>
+      <div class="audio-time">{formatTime(audioCurrentTime)}</div>
+      <div class="audio-progress">
+        <div class="audio-progress-bar" style="width: {audioProgress}%"></div>
+        <div class="progress-knob" style="left: {audioProgress}%"></div>
+      </div>
+      <div class="audio-time">{formatTime(audioDuration)}</div>
     </div>
 
-    <div class="audio-controls-play">
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <button class="audio-btn skip-btn" on:click={prevTrack}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7 6v12h2V6H7zm10 0l-7 6 7 6V6z" />
-        </svg>
-      </button>
-
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <button class="audio-btn play-btn" on:click={toggleAudio}>
-        {#if isPlaying}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16" rx="1" />
-            <rect x="14" y="4" width="4" height="16" rx="1" />
-          </svg>
-        {:else}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        {/if}
-      </button>
-
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <button class="audio-btn skip-btn" on:click={nextTrack}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7 6v12l7-6-7-6zm10 0v12h-2V6h2z" />
-        </svg>
-      </button>
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="audio-volume-row">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+      </svg>
+      <div class="volume-slider" on:mousedown={startVolumeDrag}>
+        <div class="volume-fill" style="width: {audioVolume * 100}%"></div>
+        <div class="volume-knob" style="left: {audioVolume * 100}%"></div>
+      </div>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path d="M11 5L6 9H2v6h4l5 4V5z" />
+        <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07" />
+      </svg>
     </div>
   </div>
-
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="audio-progress-container" on:mousedown={startProgressDrag}>
-    <div class="audio-time">{formatTime(audioCurrentTime)}</div>
-    <div class="audio-progress">
-      <div class="audio-progress-bar" style="width: {audioProgress}%"></div>
-      <div class="progress-knob" style="left: {audioProgress}%"></div>
-    </div>
-    <div class="audio-time">{formatTime(audioDuration)}</div>
-  </div>
-
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <!-- svelte-ignore a11y-no-static-element-interactions -->
-  <div class="audio-volume-row">
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <path d="M11 5L6 9H2v6h4l5 4V5z" />
-    </svg>
-    <div class="volume-slider" on:mousedown={startVolumeDrag}>
-      <div class="volume-fill" style="width: {audioVolume * 100}%"></div>
-      <div class="volume-knob" style="left: {audioVolume * 100}%"></div>
-    </div>
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <path d="M11 5L6 9H2v6h4l5 4V5z" />
-      <path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07" />
-    </svg>
-  </div>
-</div>
+{/if}
 
 <!-- Particles -->
 {#each particles as particle (particle.id)}
@@ -1128,101 +1372,193 @@
 {/each}
 
 <main>
+  <!-- Dual background videos for theme crossfade -->
   <div class="background">
-    <video autoplay muted loop playsinline class="bg-video">
+    <video
+      autoplay
+      muted
+      loop={true}
+      playsinline
+      class="bg-video"
+      class:hidden-bg={isDarkTheme}
+    >
       <source src="{base}bg.mp4" type="video/mp4" />
+    </video>
+    <video
+      autoplay
+      muted
+      loop={true}
+      playsinline
+      class="bg-video bg-video-dark"
+      class:visible-bg={isDarkTheme}
+    >
+      <source src="{base}blackbackground.mp4" type="video/mp4" />
     </video>
   </div>
 
+  <canvas bind:this={canvasEl} class="visualizer-canvas"></canvas>
+
   <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <!-- 3D Tilt Wrapper -->
   <div
-    class="window-card"
-    class:show
-    class:minimized
-    class:closed
-    class:dragging={isDragging}
-    bind:this={windowEl}
-    on:contextmenu={handleContextMenu}
-    style="
-      transform: translate({position.x}px, {position.y}px) {minimized
-      ? 'scale(0.01) translateY(500px)'
-      : closed
-        ? 'scale(0.8)'
-        : show
-          ? ''
-          : 'translateY(20px)'};
-      box-shadow: {shadowX}px {shadowY +
-      20}px 60px rgba(0, 0, 0, 0.4), {shadowX * 0.5}px {shadowY * 0.5 +
-      10}px 30px rgba(0, 0, 0, 0.3);
-    "
+    class="window-tilt-wrapper"
+    style="transform: perspective(1200px) rotateX({shadowY *
+      -0.6}deg) rotateY({shadowX * 0.6}deg);"
   >
-    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
-      class="title-bar"
-      on:mousedown={startDrag}
-      on:dblclick={handleTitleBarDoubleClick}
+      class="window-card"
+      class:show
+      class:minimized
+      class:closed
+      class:dragging={isDragging}
+      bind:this={windowEl}
+      on:contextmenu={handleContextMenu}
+      style="
+        transform: translate({position.x}px, {position.y}px) {minimized
+        ? 'scale(0.01) translateY(500px)'
+        : closed
+          ? 'scale(0.8)'
+          : show
+            ? ''
+            : 'translateY(20px)'};
+        box-shadow: {shadowX}px {shadowY +
+        20}px 60px rgba(0, 0, 0, 0.4), {shadowX * 0.5}px {shadowY * 0.5 +
+        10}px 30px rgba(0, 0, 0, 0.3);
+      "
     >
-      <div class="traffic-lights">
-        <button class="dot red" on:click={handleClose} aria-label="Close"
-        ></button>
-        <button
-          class="dot yellow"
-          on:click={handleMinimize}
-          aria-label="Minimize"
-        ></button>
-        <button class="dot green" on:click={handleZoom} aria-label="Zoom"
-        ></button>
-      </div>
-      <div class="title-container">
-        <span class="window-title">bio.app</span>
-      </div>
-    </div>
-    <div class="title-bar-line"></div>
-
-    <div class="content">
+      <div
+        class="glare"
+        style="transform: translate({shadowX * -0.6}px, {shadowY *
+          -0.6}px); opacity: {Math.abs(shadowX) > 2 || Math.abs(shadowY) > 2
+          ? 0.3
+          : 0.1}"
+      ></div>
       <!-- svelte-ignore a11y-no-static-element-interactions -->
-      <!-- svelte-ignore a11y-click-events-have-key-events -->
-      <div class="avatar-container" on:click={handleAvatarClick}>
-        <img
-          src="{base}avatar.webp"
-          alt="Avatar"
-          class="avatar"
-          class:glitch={isGlitching}
-          draggable="false"
-          style="transform: rotate({avatarTilt.x}deg) translateY({avatarTilt.y}px);"
-        />
+      <div
+        class="title-bar"
+        on:mousedown={startDrag}
+        on:dblclick={handleTitleBarDoubleClick}
+      >
+        <div class="traffic-lights">
+          <button class="dot red" on:click={handleClose} aria-label="Close"
+          ></button>
+          <button
+            class="dot yellow"
+            on:click={handleMinimize}
+            aria-label="Minimize"
+          ></button>
+          <button class="dot green" on:click={handleZoom} aria-label="Zoom"
+          ></button>
+        </div>
+        <div class="title-container">
+          <span class="window-title">bio.app</span>
+        </div>
       </div>
+      <div class="title-bar-line"></div>
 
-      <h1 class="animated-gradient">haos1y</h1>
-      <p class="subtitle">
-        {typedText}<span class="text-cursor" class:hidden={!showCursor}>|</span>
-      </p>
+      <div class="content">
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <div class="avatar-container" on:click={handleAvatarClick}>
+          <img
+            src="{base}avatar.webp"
+            alt="Avatar"
+            class="avatar"
+            class:glitch={isGlitching}
+            draggable="false"
+            style="transform: rotate({avatarTilt.x}deg) translateY({avatarTilt.y}px);"
+          />
+        </div>
 
-      <div class="links">
-        {#each links as link}
-          <a
-            href={link.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="link-btn"
-            on:click={handleLinkClick}
+        <h1 class="animated-gradient">haos1y</h1>
+        <p class="subtitle">
+          {typedText}<span class="text-cursor" class:hidden={!showCursor}
+            >|</span
           >
-            <img
-              src="{base}{link.icon}.{link.iconExt ?? 'svg'}"
-              alt=""
-              class="icon"
-            />
-            <span class="btn-text">{link.title}</span>
-            <span class="tooltip {link.tooltipPos}">{link.tooltip}</span>
-            {#if link.icon === "telegram" && showBadge}
-              <span class="badge">{badgeCount}</span>
-            {/if}
-          </a>
-        {/each}
+        </p>
+
+        <div class="links">
+          {#each links as link}
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="link-btn"
+              on:click={handleLinkClick}
+            >
+              <img
+                src="{base}{link.icon}.{link.iconExt ?? 'svg'}"
+                alt=""
+                class="icon"
+              />
+              <span class="btn-text">{link.title}</span>
+              <span class="tooltip {link.tooltipPos}">{link.tooltip}</span>
+              {#if link.icon === "telegram" && showBadge}
+                <span class="badge">{badgeCount}</span>
+              {/if}
+            </a>
+          {/each}
+        </div>
       </div>
     </div>
   </div>
 </main>
+
+<!-- macOS Dock -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<div class="dock">
+  <!-- bio.app window -->
+  <div class="dock-item" on:click={openBioApp}>
+    <div class="dock-tooltip">bio.app</div>
+    <img src="{base}bioapp.svg" alt="bio.app" class="dock-icon" />
+    <div class="dock-dot" class:active={show}></div>
+  </div>
+
+  <!-- Audio Player toggle -->
+  <div class="dock-item" on:click={togglePlayer}>
+    <div class="dock-tooltip">Плеер</div>
+    <svg
+      class="dock-icon dock-svg-icon"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+    >
+      <path
+        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
+      />
+    </svg>
+    <div class="dock-dot" class:active={showPlayer}></div>
+  </div>
+</div>
+
+<!-- Theme toggle button (top right) -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<button
+  class="theme-btn"
+  class:dark={isDarkTheme}
+  on:click={toggleTheme}
+  aria-label="Toggle theme"
+>
+  <img src="{base}theme.svg" alt="theme" />
+</button>
+
+<!-- Terminal Easter Egg Overlay -->
+{#if showTerminal}
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div class="terminal-overlay" class:error-state={terminalError}>
+    <div class="terminal-content">
+      {#each terminalLines as line}
+        <div class="terminal-line">{line}</div>
+      {/each}
+      {#if terminalInput || !terminalError}
+        <div class="terminal-line input-line">
+          {terminalInput}<span class="terminal-cursor">█</span>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 <style>
   :global(*) {
@@ -1324,7 +1660,7 @@
   /* Window Card - Frosted Glass */
   .window-card {
     width: 600px;
-    height: 485px;
+    height: 560px;
     background: rgba(0, 0, 0, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 9px;
@@ -1952,7 +2288,7 @@
   /* Keyboard hint */
   .keyboard-hint {
     position: fixed;
-    bottom: 24px;
+    top: 24px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -2462,5 +2798,304 @@
       "SF Pro",
       -apple-system,
       sans-serif;
+  }
+
+  /* Dual Background videos */
+  .bg-video {
+    transition: opacity 1.5s ease;
+  }
+  .bg-video.hidden-bg {
+    opacity: 0;
+  }
+  .bg-video-dark {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    min-width: 100%;
+    min-height: 100%;
+    width: auto;
+    height: auto;
+    transform: translate(-50%, -50%);
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 1.5s ease;
+  }
+
+  .bg-video-dark.visible-bg {
+    opacity: 1;
+  }
+
+  /* Audio Visualizer Canvas */
+  .visualizer-canvas {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* 3D Tilt Glassmorphism Wrapper */
+  .window-tilt-wrapper {
+    position: relative;
+    z-index: 10;
+    transform-style: preserve-3d;
+    transition: transform 0.1s ease-out; /* Smooth lerping is mostly done by svelte mousemove speed, but this softens it */
+  }
+
+  /* Glare effect inside window */
+  .glare {
+    position: absolute;
+    inset: -50%;
+    background: radial-gradient(
+      circle at center,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(255, 255, 255, 0) 60%
+    );
+    pointer-events: none;
+    z-index: 100;
+    transition:
+      opacity 0.3s,
+      transform 0.1s ease-out;
+    mix-blend-mode: overlay;
+  }
+
+  /* Window Card - Frosted Glass */
+  .window-card {
+    width: 600px;
+    height: 560px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 9px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    overflow: hidden;
+    position: relative;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .window-card.show {
+    opacity: 1;
+  }
+
+  /* Theme Button */
+  .theme-btn {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: 44px;
+    height: 44px;
+    background: rgba(40, 40, 40, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: none !important;
+    z-index: 500;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .theme-btn:hover {
+    transform: scale(1.1);
+    background: rgba(60, 60, 60, 0.6);
+  }
+  .theme-btn:active {
+    transform: scale(0.95);
+  }
+  .theme-btn img {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    filter: invert(1);
+  }
+  .theme-btn.dark img {
+    transform: rotate(180deg);
+  }
+
+  /* macOS Dock */
+  .dock {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(30, 30, 30, 0.5);
+    border: 0.5px solid rgba(255, 255, 255, 0.15);
+    border-radius: 20px;
+    backdrop-filter: blur(25px) saturate(180%);
+    -webkit-backdrop-filter: blur(25px) saturate(180%);
+    z-index: 1000;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  .dock-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    cursor: none !important;
+    transition: all 0.2s cubic-bezier(0.25, 1.2, 0.5, 1);
+    outline: none;
+    text-decoration: none;
+  }
+
+  .dock-icon {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    transition: all 0.2s cubic-bezier(0.25, 1.2, 0.5, 1);
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+    /* Provide a default background for SVG to make it stand out like an icon */
+  }
+
+  .dock-svg-icon {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 8px;
+    box-sizing: border-box;
+    color: white;
+  }
+
+  .dock-item:hover {
+    transform: translateY(-8px);
+  }
+
+  .dock-item:hover .dock-icon {
+    transform: scale(1.3);
+    filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.5));
+  }
+
+  .dock-dot {
+    width: 4px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
+    margin-top: 4px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .dock-dot.active {
+    opacity: 1;
+  }
+
+  .dock-tooltip {
+    position: absolute;
+    top: -38px;
+    background: rgba(40, 40, 40, 0.9);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(10px);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .dock-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(40, 40, 40, 0.9);
+  }
+
+  .dock-item:hover .dock-tooltip {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Terminal Easter Egg */
+  .terminal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 9999;
+    font-family: "Courier New", Courier, monospace;
+    color: #4af626;
+    padding: 40px;
+    font-size: 16px;
+    line-height: 1.5;
+    overflow-y: auto;
+    pointer-events: auto;
+  }
+
+  .terminal-overlay.error-state {
+    background: #ff0000;
+    color: #ffffff;
+    font-weight: bold;
+    animation: screenShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both
+      infinite;
+  }
+
+  .terminal-content {
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .terminal-line {
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .terminal-cursor {
+    animation: terminalBlink 1s step-end infinite;
+    display: inline-block;
+    margin-left: 4px;
+  }
+
+  .error-state .terminal-cursor {
+    display: none;
+  }
+
+  @keyframes terminalBlink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes screenShake {
+    10%,
+    90% {
+      transform: translate3d(-2px, 2px, 0);
+    }
+    20%,
+    80% {
+      transform: translate3d(4px, -2px, 0);
+    }
+    30%,
+    50%,
+    70% {
+      transform: translate3d(-6px, 4px, 0);
+    }
+    40%,
+    60% {
+      transform: translate3d(6px, -4px, 0);
+    }
   }
 </style>
