@@ -111,36 +111,110 @@
   let terminalInput = "";
   let terminalError = false;
 
+  // System crash / reboot state
+  let isSystemCrashing = false;
+  let isRebooting = false;
+  let rebootProgress = 0;
+
   function startTerminalCrash() {
-    showTerminal = true;
-    terminalLines = ["Initializing root access protocol..."];
-    terminalInput = "";
-    terminalError = false;
+    // Phase 1: UI physics crash — stop music, trigger fall animation
+    isSystemCrashing = true;
+    if (audio && isPlaying) {
+      // Fade out audio quickly
+      const fadeOut = setInterval(() => {
+        if (audio.volume > 0.05) {
+          audio.volume = Math.max(0, audio.volume - 0.08);
+        } else {
+          audio.pause();
+          audio.volume = 0;
+          isPlaying = false;
+          clearInterval(fadeOut);
+        }
+      }, 40);
+    }
 
-    setTimeout(
-      () =>
-        pushLine("Connecting to local secure server [127.0.0.1]... SUCCESS"),
-      800,
-    );
-    setTimeout(() => pushLine("Handshake established."), 1400);
-    setTimeout(() => pushLine("enter login and password"), 2000);
-
-    // Animate typing login
-    setTimeout(() => typeInput("login: admin"), 2600);
-    setTimeout(() => pushLine("login: admin"), 3800); // 2600 + 1200ms type time
-
-    // Animate typing password
-    setTimeout(() => typeInput("password: *****"), 4200);
-    setTimeout(() => pushLine("password: *****"), 5400);
-    setTimeout(() => pushLine("Verifying credentials..."), 5800);
-
-    // Crash
+    // Phase 2: After fall animation (700ms), show terminal
     setTimeout(() => {
-      terminalError = true;
-      pushLine("[!!!] ACCESS DENIED");
-      pushLine("[!!!] FATAL SECURITY EXCEPTION");
-      pushLine("[!!!] INITIATING SYSTEM LOCKDOWN");
-    }, 7000);
+      showTerminal = true;
+      terminalLines = ["Initializing root access protocol..."];
+      terminalInput = "";
+      terminalError = false;
+
+      setTimeout(
+        () =>
+          pushLine("Connecting to local secure server [127.0.0.1]... SUCCESS"),
+        800,
+      );
+      setTimeout(() => pushLine("Handshake established."), 1400);
+      setTimeout(() => pushLine("enter login and password"), 2000);
+
+      // Animate typing login
+      setTimeout(() => typeInput("login: admin"), 2600);
+      setTimeout(() => pushLine("login: admin"), 3800);
+
+      // Animate typing password
+      setTimeout(() => typeInput("password: *****"), 4200);
+      setTimeout(() => pushLine("password: *****"), 5400);
+      setTimeout(() => pushLine("Verifying credentials..."), 5800);
+
+      // Crash
+      setTimeout(() => {
+        terminalError = true;
+        pushLine("[!!!] ACCESS DENIED");
+        pushLine("[!!!] FATAL SECURITY EXCEPTION");
+        pushLine("[!!!] INITIATING SYSTEM LOCKDOWN");
+      }, 7000);
+
+      // Phase 3: After 10s of red screen — start reboot sequence
+      setTimeout(() => {
+        showTerminal = false;
+        terminalLines = [];
+        terminalError = false;
+        isRebooting = true;
+        rebootProgress = 0;
+
+        const totalDuration = 2800; // ms to fill bar
+        const steps = 60;
+        const stepTime = totalDuration / steps;
+        let step = 0;
+        const rebootInterval = setInterval(() => {
+          step++;
+          // Ease-in-out curve
+          const t = step / steps;
+          rebootProgress = Math.min(
+            100,
+            t < 0.5 ? 2 * t * t * 100 : (1 - Math.pow(-2 * t + 2, 2) / 2) * 100,
+          );
+          if (step >= steps) {
+            clearInterval(rebootInterval);
+            // Phase 4: System restored
+            setTimeout(() => {
+              isRebooting = false;
+              isSystemCrashing = false;
+              rebootProgress = 0;
+              // Restart music with fade-in
+              audio.volume = 0;
+              audio
+                .play()
+                .then(() => {
+                  isPlaying = true;
+                  let vol = 0;
+                  const fadeIn = setInterval(() => {
+                    vol += 0.015;
+                    if (vol >= audioVolume) {
+                      audio.volume = audioVolume;
+                      clearInterval(fadeIn);
+                    } else {
+                      audio.volume = vol;
+                    }
+                  }, 50);
+                })
+                .catch(() => {});
+            }, 400);
+          }
+        }, stepTime);
+      }, 7000 + 10000); // 7s sequence + 10s red screen
+    }, 1400); // wait for fall animation
   }
 
   function pushLine(text) {
@@ -285,6 +359,18 @@
       artist: "Full Smena, ego10sei",
       src: base + "track3.mp3",
       cover: base + "track3.webp",
+    },
+    {
+      name: "You n Me",
+      artist: "Garcon Maigre, benjamingotbenz",
+      src: base + "track4.mp3",
+      cover: base + "track4.webp",
+    },
+    {
+      name: "Nympho",
+      artist: "AQUAKEY",
+      src: base + "track5.mp3",
+      cover: base + "track5.webp",
     },
   ];
 
@@ -866,10 +952,6 @@
       show = false;
       typedText = "";
       showCursor = true;
-      setTimeout(() => {
-        show = true;
-        setTimeout(typeWriter, 500);
-      }, 300);
     }, 500);
   }
 
@@ -1280,6 +1362,7 @@
 <div
   class="keyboard-hint"
   class:hidden={spotlightOpen}
+  class:crashing={isSystemCrashing}
   on:click={() => {
     spotlightOpen = true;
     setTimeout(() => searchInputEl?.focus(), 100);
@@ -1308,6 +1391,7 @@
   <div
     class="audio-player"
     class:playing={isPlaying}
+    class:crashing={isSystemCrashing}
     style="transform: translate({isMobile ? 0 : $playerPos.x}px, {isMobile
       ? 0
       : $playerPos.y}px);"
@@ -1428,7 +1512,7 @@
   ></div>
 {/each}
 
-<main>
+<main class:crashing={isSystemCrashing}>
   <!-- Dual background videos for theme crossfade -->
   <div class="background">
     <video
@@ -1565,7 +1649,7 @@
 <!-- macOS Dock -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<div class="dock">
+<div class="dock" class:crashing={isSystemCrashing}>
   <!-- bio.app window -->
   <div class="dock-item" on:click={openBioApp}>
     <div class="dock-tooltip">bio.app</div>
@@ -1595,6 +1679,7 @@
 <button
   class="theme-btn"
   class:dark={isDarkTheme}
+  class:crashing={isSystemCrashing}
   on:click={toggleTheme}
   aria-label="Toggle theme"
 >
@@ -1605,15 +1690,68 @@
 {#if showTerminal}
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div class="terminal-overlay" class:error-state={terminalError}>
-    <div class="terminal-content">
-      {#each terminalLines as line}
-        <div class="terminal-line">{line}</div>
-      {/each}
-      {#if terminalInput || !terminalError}
-        <div class="terminal-line input-line">
-          {terminalInput}<span class="terminal-cursor">█</span>
+    <div class="terminal-window" class:error-state={terminalError}>
+      <!-- Title bar -->
+      <div class="terminal-titlebar">
+        <div class="terminal-dots">
+          <span class="t-dot t-red"></span>
+          <span class="t-dot t-yellow"></span>
+          <span class="t-dot t-green"></span>
         </div>
-      {/if}
+        <span class="terminal-title">
+          {terminalError
+            ? "bash — SYSTEM LOCKDOWN"
+            : "bash — ssh root@127.0.0.1"}
+        </span>
+        <div style="width:52px"></div>
+      </div>
+      <!-- Terminal body -->
+      <div class="terminal-body">
+        {#each terminalLines as line}
+          <div
+            class="terminal-line"
+            class:error-line={terminalError && line.startsWith("[!!!")}
+          >
+            {line}
+          </div>
+        {/each}
+        {#if terminalInput || !terminalError}
+          <div class="terminal-line">
+            <span class="terminal-prompt"
+              >root@localhost:~#
+            </span>{terminalInput}<span class="terminal-cursor">▌</span>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- System Reboot Overlay -->
+{#if isRebooting}
+  <div class="reboot-overlay">
+    <div class="reboot-content">
+      <div class="reboot-icon">
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+          <path d="M3 3v5h5" />
+        </svg>
+      </div>
+      <div class="reboot-text">SYSTEM REBOOT</div>
+      <div class="reboot-subtext">Restoring system state...</div>
+      <div class="reboot-bar-wrap">
+        <div class="reboot-bar-fill" style="width: {rebootProgress}%"></div>
+      </div>
+      <div class="reboot-percent">{Math.floor(rebootProgress)}%</div>
     </div>
   </div>
 {/if}
@@ -3082,49 +3220,193 @@
     transform: translateY(0);
   }
 
-  /* Terminal Easter Egg */
+  /* Terminal Easter Egg — realistic macOS Terminal */
   .terminal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.95);
+    background: #0a0a0a;
     z-index: 9999;
-    font-family: "Courier New", Courier, monospace;
-    color: #4af626;
-    padding: 40px;
-    font-size: 16px;
-    line-height: 1.5;
-    overflow-y: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: termOverlayIn 0.25s ease;
     pointer-events: auto;
   }
 
-  .terminal-overlay.error-state {
-    background: #ff0000;
-    color: #ffffff;
-    font-weight: bold;
-    animation: screenShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both
-      infinite;
+  @keyframes termOverlayIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
-  .terminal-content {
-    max-width: 800px;
-    margin: 0 auto;
-    width: 100%;
+  /* Scanline effect over the whole screen */
+  .terminal-overlay::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.08) 2px,
+      rgba(0, 0, 0, 0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* The actual terminal window */
+  .terminal-window {
+    width: min(820px, 92vw);
+    max-height: 80vh;
+    background: #1a1a1a;
+    border-radius: 10px;
+    box-shadow:
+      0 40px 80px rgba(0, 0, 0, 0.8),
+      0 0 0 1px rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    z-index: 2;
+    animation: termWindowIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes termWindowIn {
+    from {
+      transform: scale(0.94) translateY(12px);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* Error state — window shakes and goes red */
+  .terminal-window.error-state {
+    background: #1a0000;
+    box-shadow:
+      0 40px 80px rgba(255, 0, 0, 0.4),
+      0 0 0 1px rgba(255, 60, 60, 0.3);
+    animation:
+      termWindowIn 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      screenShake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) 0s both infinite;
+  }
+
+  /* Title bar */
+  .terminal-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    height: 38px;
+    background: #282828;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .t-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: block;
+  }
+
+  .t-red {
+    background: #ff5f57;
+  }
+  .t-yellow {
+    background: #febc2e;
+  }
+  .t-green {
+    background: #28c840;
+  }
+
+  .terminal-title {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60%;
+    text-align: center;
+  }
+
+  /* Terminal body - the text area */
+  .terminal-body {
+    padding: 16px 20px 20px;
+    font-family: "Menlo", "Monaco", "Courier New", monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #4af626;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 280px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(74, 246, 38, 0.2) transparent;
+  }
+
+  .terminal-body::-webkit-scrollbar {
+    width: 6px;
+  }
+  .terminal-body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .terminal-body::-webkit-scrollbar-thumb {
+    background: rgba(74, 246, 38, 0.2);
+    border-radius: 3px;
   }
 
   .terminal-line {
-    margin-bottom: 8px;
     white-space: pre-wrap;
     word-break: break-all;
+    min-height: 1.6em;
   }
 
+  /* Error lines (ACCESS DENIED etc.) */
+  .terminal-line.error-line {
+    color: #ff4444;
+    font-weight: bold;
+    text-shadow: 0 0 8px rgba(255, 68, 68, 0.7);
+    animation: errorFlicker 0.1s step-end infinite;
+  }
+
+  @keyframes errorFlicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.85;
+    }
+  }
+
+  /* Shell prompt */
+  .terminal-prompt {
+    color: #7fff5f;
+    font-weight: bold;
+    user-select: none;
+  }
+
+  /* Blinking cursor */
   .terminal-cursor {
-    animation: terminalBlink 1s step-end infinite;
     display: inline-block;
-    margin-left: 4px;
-  }
-
-  .error-state .terminal-cursor {
-    display: none;
+    color: #4af626;
+    animation: terminalBlink 0.7s step-end infinite;
+    font-weight: normal;
   }
 
   @keyframes terminalBlink {
@@ -3342,5 +3624,188 @@
       padding: 20px 16px;
       font-size: 13px;
     }
+  }
+
+  /* =============================================
+     CRASH FALL PHYSICS ANIMATIONS
+     ============================================= */
+
+  /* Main window card falls down */
+  main.crashing .window-tilt-wrapper {
+    animation: crashFallMain 1.2s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+  }
+
+  /* Dock flies off the bottom */
+  .dock.crashing {
+    animation: crashFallDock 1s cubic-bezier(0.55, 0, 1, 0.45) 0.15s forwards;
+  }
+
+  /* Audio player flies off to the right */
+  .audio-player.crashing {
+    animation: crashFallPlayer 0.95s cubic-bezier(0.55, 0, 1, 0.45) 0.1s
+      forwards;
+  }
+
+  /* Keyboard hint falls */
+  .keyboard-hint.crashing {
+    animation: crashFallHint 0.85s cubic-bezier(0.55, 0, 1, 0.45) 0s forwards;
+  }
+
+  /* Theme button flies off top-right */
+  .theme-btn.crashing {
+    animation: crashFallTheme 0.85s cubic-bezier(0.55, 0, 1, 0.45) 0.1s forwards;
+  }
+
+  @keyframes crashFallMain {
+    0% {
+      transform: none;
+      opacity: 1;
+    }
+    15% {
+      transform: perspective(800px) rotateX(-8deg) rotateZ(-3deg)
+        translateY(-10px);
+    }
+    100% {
+      transform: perspective(800px) rotateX(20deg) rotateZ(-10deg)
+        translateY(130vh) scale(0.7);
+      opacity: 0;
+    }
+  }
+
+  @keyframes crashFallDock {
+    0% {
+      transform: translateX(-50%);
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-50%) translateY(200px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes crashFallPlayer {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      transform: translate(150%, 120%) rotate(25deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes crashFallHint {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-50%) translateY(-80px) scale(0.5);
+      opacity: 0;
+    }
+  }
+
+  @keyframes crashFallTheme {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      transform: translate(80px, -80px) rotate(45deg) scale(0.3);
+      opacity: 0;
+    }
+  }
+
+  /* =============================================
+     SYSTEM REBOOT OVERLAY
+     ============================================= */
+  .reboot-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: rebootFadeIn 0.5s ease;
+  }
+
+  @keyframes rebootFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .reboot-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    color: #4af626;
+    font-family: "Courier New", Courier, monospace;
+  }
+
+  .reboot-icon {
+    animation: rebootSpin 1.2s linear infinite;
+    color: #4af626;
+    opacity: 0.9;
+  }
+
+  @keyframes rebootSpin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .reboot-text {
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 0.25em;
+    text-shadow: 0 0 10px rgba(74, 246, 38, 0.6);
+  }
+
+  .reboot-subtext {
+    font-size: 13px;
+    color: rgba(74, 246, 38, 0.6);
+    letter-spacing: 0.08em;
+    animation: rebootBlink 1.2s step-end infinite;
+  }
+
+  @keyframes rebootBlink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  .reboot-bar-wrap {
+    width: 280px;
+    height: 6px;
+    background: rgba(74, 246, 38, 0.15);
+    border-radius: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(74, 246, 38, 0.3);
+  }
+
+  .reboot-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #2a9d1a, #4af626, #7fff5f);
+    border-radius: 3px;
+    transition: width 0.06s linear;
+    box-shadow: 0 0 8px rgba(74, 246, 38, 0.6);
+  }
+
+  .reboot-percent {
+    font-size: 12px;
+    color: rgba(74, 246, 38, 0.7);
+    letter-spacing: 0.1em;
+    min-width: 40px;
+    text-align: center;
   }
 </style>
