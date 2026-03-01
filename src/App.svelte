@@ -2,6 +2,28 @@
   import { onMount } from "svelte";
   import { spring } from "svelte/motion";
   import LoadingScreen from "./LoadingScreen.svelte";
+  import AimTrainer from "./AimTrainer.svelte";
+
+  let showAimTrainer = false;
+  let wasPlayingBeforeAim = false;
+
+  function toggleAimTrainer() {
+    showAimTrainer = !showAimTrainer;
+    if (showAimTrainer) {
+      // Pause music when opening aim trainer
+      wasPlayingBeforeAim = isPlaying;
+      if (audio && isPlaying) {
+        audio.pause();
+        isPlaying = false;
+      }
+    } else {
+      // Resume music when closing aim trainer
+      if (audio && wasPlayingBeforeAim) {
+        audio.play().catch(() => {});
+        isPlaying = true;
+      }
+    }
+  }
 
   const base = import.meta.env.BASE_URL;
 
@@ -1671,7 +1693,41 @@
     </svg>
     <div class="dock-dot" class:active={showPlayer}></div>
   </div>
+
+  <!-- Aim Trainer toggle -->
+  <div class="dock-item" on:click={toggleAimTrainer}>
+    <div class="dock-tooltip">Aim Trainer</div>
+    <svg
+      class="dock-icon dock-svg-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+      <line x1="12" y1="2" x2="12" y2="5" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="5" y2="12" />
+      <line x1="19" y1="12" x2="22" y2="12" />
+    </svg>
+    <div class="dock-dot" class:active={showAimTrainer}></div>
+  </div>
 </div>
+
+<!-- Aim Trainer Overlay -->
+{#if showAimTrainer}
+  <AimTrainer
+    on:close={() => {
+      showAimTrainer = false;
+      if (audio && wasPlayingBeforeAim) {
+        audio.play().catch(() => {});
+        isPlaying = true;
+      }
+    }}
+  />
+{/if}
 
 <!-- Theme toggle button (top right) -->
 <!-- svelte-ignore a11y-no-static-element-interactions -->
