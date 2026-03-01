@@ -365,8 +365,8 @@
   let currentTrackIndex = 0;
   const tracks = [
     {
-      name: "faustian bargain",
-      artist: "королевский XVII",
+      name: "Тупой",
+      artist: "Юпи, boogshi",
       src: base + "track.mp3",
       cover: base + "track.webp",
     },
