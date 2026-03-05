@@ -6,6 +6,11 @@
 
   let showAimTrainer = false;
   let wasPlayingBeforeAim = false;
+  let showLauncher = false;
+
+  function toggleLauncher() {
+    showLauncher = !showLauncher;
+  }
 
   function toggleAimTrainer() {
     showAimTrainer = !showAimTrainer;
@@ -1714,6 +1719,25 @@
     </svg>
     <div class="dock-dot" class:active={showAimTrainer}></div>
   </div>
+
+  <!-- Minecraft Launcher -->
+  <div class="dock-item" on:click={toggleLauncher}>
+    <div class="dock-tooltip">Launcher</div>
+    <svg
+      class="dock-icon dock-svg-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+    >
+      <rect x="3" y="3" width="18" height="18" rx="3" />
+      <rect x="7" y="7" width="4" height="4" />
+      <rect x="13" y="7" width="4" height="4" />
+      <rect x="7" y="13" width="4" height="4" />
+      <rect x="13" y="13" width="4" height="4" />
+    </svg>
+    <div class="dock-dot" class:active={showLauncher}></div>
+  </div>
 </div>
 
 <!-- Aim Trainer Overlay -->
@@ -1727,6 +1751,140 @@
       }
     }}
   />
+{/if}
+
+<!-- Minecraft Launcher Download Overlay -->
+{#if showLauncher}
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
+  <div class="launcher-overlay" on:click={toggleLauncher}>
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="launcher-window" on:click|stopPropagation>
+      <!-- Title bar -->
+      <div class="launcher-titlebar">
+        <div class="launcher-dots">
+          <span class="l-dot l-red" on:click={toggleLauncher}></span>
+          <span class="l-dot l-yellow"></span>
+          <span class="l-dot l-green"></span>
+        </div>
+        <span class="launcher-title">X Minecraft Launcher</span>
+        <div style="width:52px"></div>
+      </div>
+
+      <!-- Content -->
+      <div class="launcher-body">
+        <div class="launcher-hero">
+          <div class="launcher-hero-icon">
+            <svg
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+              <rect
+                x="7"
+                y="7"
+                width="4"
+                height="4"
+                fill="currentColor"
+                opacity="0.3"
+              />
+              <rect
+                x="13"
+                y="7"
+                width="4"
+                height="4"
+                fill="currentColor"
+                opacity="0.3"
+              />
+              <rect
+                x="7"
+                y="13"
+                width="4"
+                height="4"
+                fill="currentColor"
+                opacity="0.3"
+              />
+              <rect
+                x="13"
+                y="13"
+                width="4"
+                height="4"
+                fill="currentColor"
+                opacity="0.3"
+              />
+            </svg>
+          </div>
+          <h2 class="launcher-hero-title">X Minecraft Launcher</h2>
+          <p class="launcher-hero-desc">
+            Кастомный лаунчер для Minecraft с модами и оптимизацией. Скачай,
+            распакуй и играй!
+          </p>
+          <a
+            href="{base}launcher/launcher.rar"
+            download
+            class="launcher-download-btn"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7,10 12,15 17,10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Скачать (.rar, ~88 МБ)
+          </a>
+        </div>
+
+        <div class="launcher-divider"></div>
+
+        <div class="launcher-instructions">
+          <h3 class="launcher-instructions-title">Инструкция по установке</h3>
+          <div class="launcher-steps">
+            <div class="launcher-step">
+              <div class="step-number">1</div>
+              <div class="step-content">
+                <span class="step-title">Скачай архив</span>
+                <span class="step-desc"
+                  >Нажми кнопку "Скачать" выше. Начнётся загрузка ZIP-архива.</span
+                >
+              </div>
+            </div>
+            <div class="launcher-step">
+              <div class="step-number">2</div>
+              <div class="step-content">
+                <span class="step-title">Распакуй архив</span>
+                <span class="step-desc"
+                  >Разархивируй содержимое ZIP в любую удобную папку на
+                  компьютере.</span
+                >
+              </div>
+            </div>
+            <div class="launcher-step">
+              <div class="step-number">3</div>
+              <div class="step-content">
+                <span class="step-title">Запусти лаунчер</span>
+                <span class="step-desc"
+                  >Открой папку и запусти файл <strong
+                    >X Minecraft Launcher</strong
+                  >. Готово!</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <!-- Theme toggle button (top right) -->
@@ -3863,5 +4021,241 @@
     letter-spacing: 0.1em;
     min-width: 40px;
     text-align: center;
+  }
+
+  /* ======== Minecraft Launcher Overlay ======== */
+  .launcher-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.25s ease;
+  }
+
+  .launcher-window {
+    width: 540px;
+    max-height: 85vh;
+    background: rgba(28, 28, 30, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+    animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .launcher-titlebar {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    background: rgba(38, 38, 40, 0.9);
+    padding: 0 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .launcher-dots {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    width: 52px;
+  }
+
+  .l-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 0.5px solid rgba(0, 0, 0, 0.2);
+    transition: opacity 0.15s;
+  }
+  .l-dot:hover {
+    opacity: 0.8;
+  }
+  .l-red {
+    background: #ff5f57;
+  }
+  .l-yellow {
+    background: #febc2e;
+  }
+  .l-green {
+    background: #28c840;
+  }
+
+  .launcher-title {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.01em;
+  }
+
+  .launcher-body {
+    padding: 32px 28px;
+    overflow-y: auto;
+    max-height: calc(85vh - 36px);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+
+  .launcher-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+  }
+
+  .launcher-hero-icon {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      135deg,
+      rgba(76, 175, 80, 0.2),
+      rgba(56, 142, 60, 0.3)
+    );
+    border-radius: 20px;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: #4caf50;
+    margin-bottom: 4px;
+  }
+
+  .launcher-hero-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+
+  .launcher-hero-desc {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.5;
+    max-width: 380px;
+  }
+
+  .launcher-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 28px;
+    background: linear-gradient(135deg, #4caf50, #2e7d32);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+    border: none;
+    text-decoration: none;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 16px rgba(76, 175, 80, 0.3);
+    margin-top: 8px;
+  }
+
+  .launcher-download-btn:hover {
+    transform: scale(1.04);
+    box-shadow: 0 6px 24px rgba(76, 175, 80, 0.45);
+    background: linear-gradient(135deg, #56c45a, #388e3c);
+  }
+
+  .launcher-download-btn:active {
+    transform: scale(0.98);
+  }
+
+  .launcher-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 28px 0;
+  }
+
+  .launcher-instructions {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .launcher-instructions-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: -0.01em;
+  }
+
+  .launcher-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .launcher-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background 0.15s;
+  }
+
+  .launcher-step:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .step-number {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+      135deg,
+      rgba(76, 175, 80, 0.25),
+      rgba(56, 142, 60, 0.4)
+    );
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #4caf50;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+  }
+
+  .step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .step-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.4;
+  }
+
+  .step-desc strong {
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 600;
+  }
+
+  @media (max-width: 600px) {
+    .launcher-window {
+      width: 95vw;
+      margin: 10px;
+    }
+    .launcher-body {
+      padding: 20px 16px;
+    }
   }
 </style>
